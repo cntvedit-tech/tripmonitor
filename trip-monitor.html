@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Trip Monitor — Live Group Tracker | KeralaTrips</title>
+  <meta name="description" content="Track your travel group in real-time. Share locations, monitor travel status and get safety alerts — all in one map."/>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <!-- Leaflet Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    :root{--status-travel:#00e5a0;--status-reach:#ffd166;--status-break:#00cec9;--status-unavail:#ff6b6b;}
+
+    /* ── SCREENS ── */
+    .screen{display:none;animation:fadeUp 0.4s ease;}
+    .screen.active{display:block;}
+
+    /* ── JOIN / CREATE SCREEN ── */
+    .monitor-hero{min-height:100vh;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;background:var(--clr-bg);}
+    .monitor-hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 30% 50%,rgba(0,229,160,0.07),transparent 60%),radial-gradient(ellipse at 70% 50%,rgba(0,206,201,0.05),transparent 60%);}
+    .join-card{width:100%;max-width:520px;padding:48px 40px;border-radius:var(--radius-xl);position:relative;z-index:1;}
+    .mode-tabs{display:grid;grid-template-columns:1fr 1fr;border-radius:12px;overflow:hidden;border:1px solid var(--clr-border);margin-bottom:32px;}
+    .mode-tab{padding:14px;text-align:center;cursor:pointer;font-weight:700;font-size:0.9rem;transition:var(--transition);color:var(--clr-muted);}
+    .mode-tab.active{background:linear-gradient(135deg,var(--clr-em),var(--clr-teal));color:#030d12;}
+    .code-display{font-family:var(--font-mono);font-size:2.5rem;font-weight:900;letter-spacing:12px;color:var(--clr-em);text-align:center;padding:24px;background:rgba(0,229,160,0.06);border:2px dashed rgba(0,229,160,0.3);border-radius:var(--radius-md);margin:20px 0;cursor:pointer;transition:var(--transition);}
+    .code-display:hover{background:rgba(0,229,160,0.1);}
+    .code-input{font-family:var(--font-mono);font-size:1.8rem;font-weight:900;letter-spacing:10px;text-align:center;text-transform:uppercase;}
+    .role-select{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+    .role-card{border:2px solid var(--clr-border);border-radius:12px;padding:16px;cursor:pointer;text-align:center;transition:var(--transition);}
+    .role-card.selected{border-color:var(--clr-em);background:rgba(0,229,160,0.07);}
+    .role-icon{font-size:2rem;margin-bottom:6px;}
+    .role-name{font-weight:700;font-size:0.9rem;}
+    .role-desc{font-size:0.75rem;color:var(--clr-muted);}
+
+    /* ── DASHBOARD ── */
+    .dashboard{min-height:100vh;display:grid;grid-template-rows:64px 1fr;background:var(--clr-bg);}
+    .dash-nav{display:flex;align-items:center;gap:16px;padding:0 20px;background:var(--clr-bg2);border-bottom:1px solid var(--clr-border);position:relative;z-index:1000;}
+    .dash-nav .logo{font-weight:800;font-size:1rem;display:flex;align-items:center;gap:8px;}
+    .live-badge{background:rgba(255,80,80,0.15);border:1px solid rgba(255,80,80,0.4);color:#ff5050;padding:3px 10px;border-radius:99px;font-size:0.72rem;font-weight:700;display:flex;align-items:center;gap:5px;}
+    .live-dot{width:7px;height:7px;border-radius:50%;background:#ff5050;animation:pulse 1.5s ease infinite;}
+    .group-code-badge{background:rgba(0,229,160,0.1);border:1px solid rgba(0,229,160,0.25);color:var(--clr-em);padding:4px 14px;border-radius:99px;font-family:var(--font-mono);font-size:0.8rem;font-weight:700;cursor:pointer;transition:var(--transition);}
+    .group-code-badge:hover{background:rgba(0,229,160,0.2);}
+    .dash-body{display:grid;grid-template-columns:360px 1fr;overflow:hidden;height:calc(100vh - 64px);}
+    .dash-sidebar{overflow-y:auto;border-right:1px solid var(--clr-border);display:flex;flex-direction:column;}
+    .sidebar-tabs{display:flex;border-bottom:1px solid var(--clr-border);}
+    .sidebar-tab{flex:1;padding:12px;text-align:center;cursor:pointer;font-size:0.8rem;font-weight:700;color:var(--clr-muted);border-bottom:2px solid transparent;transition:var(--transition);}
+    .sidebar-tab.active{color:var(--clr-em);border-bottom-color:var(--clr-em);}
+    .sidebar-content{flex:1;overflow-y:auto;}
+
+    /* ── MEMBER CARDS ── */
+    .member-card{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;align-items:center;gap:12px;cursor:pointer;transition:var(--transition);}
+    .member-card:hover{background:rgba(255,255,255,0.03);}
+    .member-card.selected{background:rgba(0,229,160,0.05);border-left:3px solid var(--clr-em);}
+    .member-avatar{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:1.3rem;flex-shrink:0;position:relative;border:2px solid transparent;}
+    .member-avatar.status-travelling{border-color:var(--status-travel);}
+    .member-avatar.status-reached{border-color:var(--status-reach);}
+    .member-avatar.status-break{border-color:var(--status-break);}
+    .member-avatar.status-unavailable{border-color:var(--status-unavail);}
+    .status-ring{position:absolute;bottom:-2px;right:-2px;width:14px;height:14px;border-radius:50%;border:2px solid var(--clr-bg2);}
+    .member-info{flex:1;}
+    .member-name{font-weight:700;font-size:0.9rem;margin-bottom:2px;}
+    .member-status{font-size:0.75rem;display:flex;align-items:center;gap:5px;}
+    .member-dist{font-size:0.75rem;color:var(--clr-muted);text-align:right;}
+    .member-speed{font-size:0.7rem;color:var(--clr-muted);}
+    .status-pill{padding:2px 8px;border-radius:99px;font-size:0.7rem;font-weight:700;}
+    .status-pill.travelling{background:rgba(0,229,160,0.15);color:var(--status-travel);}
+    .status-pill.reached{background:rgba(255,209,102,0.15);color:var(--status-reach);}
+    .status-pill.break{background:rgba(0,206,201,0.15);color:var(--status-break);}
+    .status-pill.unavailable{background:rgba(255,107,107,0.15);color:var(--status-unavail);}
+
+    /* ── MAP ── */
+    #map{height:100%;width:100%;z-index:1;}
+    .map-controls{position:absolute;top:16px;right:16px;z-index:1000;display:flex;flex-direction:column;gap:8px;}
+    .map-btn{width:42px;height:42px;background:var(--clr-bg2);border:1px solid var(--clr-border);border-radius:10px;display:grid;place-items:center;cursor:pointer;font-size:0.95rem;transition:var(--transition);color:var(--clr-text);}
+    .map-btn:hover{border-color:var(--clr-em);color:var(--clr-em);}
+    .map-wrap{position:relative;flex:1;}
+
+    /* ── ALERTS PANEL ── */
+    .alert-item{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;gap:12px;align-items:flex-start;}
+    .alert-icon{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;font-size:1rem;flex-shrink:0;}
+    .alert-icon.danger{background:rgba(255,107,107,0.15);}
+    .alert-icon.warn{background:rgba(255,209,102,0.15);}
+    .alert-icon.info{background:rgba(0,206,201,0.15);}
+    .alert-icon.success{background:rgba(0,229,160,0.15);}
+    .alert-title{font-size:0.875rem;font-weight:700;margin-bottom:3px;}
+    .alert-desc{font-size:0.78rem;color:var(--clr-muted);}
+    .alert-time{font-size:0.7rem;color:var(--clr-muted);margin-top:4px;}
+    .alert-badge{display:inline-flex;align-items:center;justify-content:center;background:var(--clr-coral);color:#fff;border-radius:99px;min-width:18px;height:18px;font-size:0.68rem;font-weight:800;padding:0 5px;}
+
+    /* ── STATS BAR ── */
+    .stats-bar{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--clr-border);background:var(--clr-bg2);}
+    .stat-item{padding:12px 16px;text-align:center;border-right:1px solid var(--clr-border);}
+    .stat-item:last-child{border-right:none;}
+    .stat-val{font-size:1.3rem;font-weight:900;font-family:var(--font-mono);}
+    .stat-lbl{font-size:0.68rem;color:var(--clr-muted);text-transform:uppercase;letter-spacing:0.5px;}
+
+    /* ── ROUTE PROGRESS ── */
+    .route-progress{padding:16px;}
+    .route-bar{height:6px;background:rgba(255,255,255,0.08);border-radius:99px;overflow:visible;position:relative;margin:12px 0 24px;}
+    .route-fill{height:100%;border-radius:99px;background:linear-gradient(to right,var(--clr-em),var(--clr-teal));transition:width 1s ease;}
+    .route-dot{position:absolute;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;border:2px solid var(--clr-bg2);cursor:pointer;transition:left 1s ease;}
+
+    /* ── LEAFLET CUSTOM MARKERS ── */
+    .custom-marker{position:relative;}
+    .marker-avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;border:3px solid #fff;box-shadow:0 2px 12px rgba(0,0,0,0.4);transition:transform 0.3s;}
+    .marker-label{position:absolute;bottom:-22px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:0.65rem;font-weight:700;background:rgba(3,13,18,0.85);color:#fff;padding:2px 7px;border-radius:4px;}
+    .marker-pulse{position:absolute;inset:-8px;border-radius:50%;animation:markerPulse 2s ease infinite;}
+    @keyframes markerPulse{0%,100%{box-shadow:0 0 0 0 rgba(0,229,160,0.4);}50%{box-shadow:0 0 0 14px rgba(0,229,160,0);}}
+
+    /* ── COPY TOAST ── */
+    .toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(80px);background:rgba(0,229,160,0.9);color:#030d12;padding:10px 24px;border-radius:99px;font-weight:700;font-size:0.875rem;z-index:9999;transition:transform 0.35s ease;pointer-events:none;}
+    .toast.show{transform:translateX(-50%) translateY(0);}
+
+    /* ── MY LOCATION TOGGLE ── */
+    .location-toggle{padding:12px 16px;border-bottom:1px solid var(--clr-border);display:flex;align-items:center;justify-content:space-between;background:rgba(0,229,160,0.04);}
+    .toggle-switch{position:relative;width:44px;height:24px;}
+    .toggle-switch input{display:none;}
+    .toggle-slider{position:absolute;inset:0;border-radius:99px;background:var(--clr-border);cursor:pointer;transition:0.3s;}
+    .toggle-slider::before{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;left:3px;top:3px;transition:0.3s;}
+    .toggle-switch input:checked + .toggle-slider{background:var(--clr-em);}
+    .toggle-switch input:checked + .toggle-slider::before{transform:translateX(20px);}
+
+    /* Responsive */
+    @media(max-width:900px){
+      .dash-body{grid-template-columns:1fr;grid-template-rows:auto 1fr;}
+      .dash-sidebar{height:280px;border-right:none;border-bottom:1px solid var(--clr-border);}
+      #map{min-height:400px;}
+      .stats-bar{grid-template-columns:repeat(2,1fr);}
+      .join-card{padding:32px 20px;}
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     SCREEN 1: JOIN / CREATE GROUP
+════════════════════════════════════════════ -->
+<div id="screenJoin" class="screen active">
+  <div class="monitor-hero">
+    <!-- Animated BG -->
+    <canvas id="bgCanvas" style="position:absolute;inset:0;opacity:0.4;"></canvas>
+    <div class="orb orb-1" style="top:-100px;left:-100px;"></div>
+    <div class="orb orb-2" style="bottom:-100px;right:-100px;"></div>
+
+    <div class="container" style="position:relative;z-index:1;display:flex;justify-content:center;">
+      <div class="join-card glass">
+
+        <!-- Logo -->
+        <div style="text-align:center;margin-bottom:24px;">
+          <div style="font-size:3rem;margin-bottom:8px;animation:float 3s ease-in-out infinite;">📡</div>
+          <h1 style="font-size:1.8rem;font-weight:900;margin-bottom:4px;">Trip<span class="gradient-text">Monitor</span></h1>
+          <p style="font-size:0.875rem;color:var(--clr-muted);">Real-time group tracking for Kerala adventures</p>
+        </div>
+
+        <!-- Features Row -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:28px;">
+          <div style="text-align:center;padding:12px 8px;background:rgba(0,229,160,0.05);border-radius:10px;border:1px solid rgba(0,229,160,0.1);">
+            <div style="font-size:1.4rem;">🗺️</div>
+            <div style="font-size:0.72rem;color:var(--clr-muted);margin-top:4px;">Live Map</div>
+          </div>
+          <div style="text-align:center;padding:12px 8px;background:rgba(0,229,160,0.05);border-radius:10px;border:1px solid rgba(0,229,160,0.1);">
+            <div style="font-size:1.4rem;">🔔</div>
+            <div style="font-size:0.72rem;color:var(--clr-muted);margin-top:4px;">Safety Alerts</div>
+          </div>
+          <div style="text-align:center;padding:12px 8px;background:rgba(0,229,160,0.05);border-radius:10px;border:1px solid rgba(0,229,160,0.1);">
+            <div style="font-size:1.4rem;">👥</div>
+            <div style="font-size:0.72rem;color:var(--clr-muted);margin-top:4px;">Group Code</div>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="mode-tabs">
+          <div class="mode-tab active" id="tabCreate" onclick="switchMode('create')">🚀 Create Group</div>
+          <div class="mode-tab" id="tabJoin" onclick="switchMode('join')">🔗 Join Group</div>
+        </div>
+
+        <!-- CREATE MODE -->
+        <div id="modeCreate">
+          <div class="form-group">
+            <label class="form-label">Your Name</label>
+            <div class="form-icon-wrap">
+              <i class="fa-solid fa-user form-icon"></i>
+              <input type="text" id="leaderName" class="form-control" placeholder="e.g. Arjun (Group Leader)" value=""/>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Trip Name</label>
+            <div class="form-icon-wrap">
+              <i class="fa-solid fa-route form-icon"></i>
+              <input type="text" id="tripName" class="form-control" placeholder="e.g. Munnar Bullet Ride 2026" value="Munnar Bullet Ride 2026"/>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Destination</label>
+            <select id="destination" class="form-control">
+              <option value="Munnar">🏔️ Munnar</option>
+              <option value="Alleppey">🚤 Alleppey Backwaters</option>
+              <option value="Wayanad">🌿 Wayanad</option>
+              <option value="Kovalam">🏖️ Kovalam Beach</option>
+              <option value="Thekkady">🐘 Thekkady</option>
+              <option value="Fort Kochi">🏛️ Fort Kochi</option>
+              <option value="Varkala">🌊 Varkala</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Your Role</label>
+            <div class="role-select">
+              <div class="role-card selected" id="roleLeader" onclick="selectRole('leader')">
+                <div class="role-icon">👑</div>
+                <div class="role-name">Group Leader</div>
+                <div class="role-desc">Full monitoring access + alerts</div>
+              </div>
+              <div class="role-card" id="roleMember" onclick="selectRole('member')">
+                <div class="role-icon">🏍️</div>
+                <div class="role-name">Member</div>
+                <div class="role-desc">Share location, see group</div>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:16px;font-size:1rem;" onclick="createGroup()">
+            <i class="fa-solid fa-satellite-dish"></i> Create Trip Group
+          </button>
+        </div>
+
+        <!-- JOIN MODE -->
+        <div id="modeJoin" style="display:none;">
+          <div class="form-group">
+            <label class="form-label">Your Name</label>
+            <div class="form-icon-wrap">
+              <i class="fa-solid fa-user form-icon"></i>
+              <input type="text" id="memberName" class="form-control" placeholder="e.g. Rahul"/>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Enter Group Code</label>
+            <input type="text" id="joinCode" class="form-control code-input" placeholder="ABC123" maxlength="6" oninput="this.value=this.value.toUpperCase()"/>
+          </div>
+          <p style="font-size:0.8rem;color:var(--clr-muted);margin-bottom:20px;text-align:center;">Ask your group leader for the 6-digit code</p>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:16px;font-size:1rem;" onclick="joinGroup()">
+            <i class="fa-solid fa-right-to-bracket"></i> Join Trip Group
+          </button>
+          <div style="margin-top:16px;text-align:center;">
+            <button class="btn btn-outline" style="width:100%;justify-content:center;" onclick="loadDemo()">
+              🎮 Try Demo (Munnar Bullet Ride)
+            </button>
+          </div>
+        </div>
+
+        <div class="auth-footer-text" style="margin-top:20px;">
+          Back to <a href="index.html">KeralaTrips Home</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     SCREEN 2: MONITORING DASHBOARD
+════════════════════════════════════════════ -->
+<div id="screenDash" class="screen">
+  <div class="dashboard">
+
+    <!-- Top Nav -->
+    <div class="dash-nav">
+      <div class="logo">📡 Trip<span class="gradient-text">Monitor</span></div>
+      <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+      <div style="flex:1;"></div>
+      <div style="font-size:0.8rem;color:var(--clr-muted);margin-right:8px;">Group Code:</div>
+      <div class="group-code-badge" id="navGroupCode" onclick="copyCode()" title="Click to copy">XXXXXX</div>
+      <button class="map-btn" style="margin-left:12px;" onclick="leaveGroup()" title="Leave group">
+        <i class="fa-solid fa-arrow-right-from-bracket"></i>
+      </button>
+    </div>
+
+    <div style="display:flex;flex-direction:column;overflow:hidden;height:calc(100vh - 64px);">
+
+      <!-- Stats Bar -->
+      <div class="stats-bar" id="statsBar">
+        <div class="stat-item">
+          <div class="stat-val" id="statTotal" style="color:var(--clr-em);">0</div>
+          <div class="stat-lbl">Members</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" id="statTravelling" style="color:var(--status-travel);">0</div>
+          <div class="stat-lbl">Travelling</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" id="statReached" style="color:var(--status-reach);">0</div>
+          <div class="stat-lbl">Reached</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" id="statAlerts" style="color:var(--clr-coral);">0</div>
+          <div class="stat-lbl">Alerts</div>
+        </div>
+      </div>
+
+      <div class="dash-body">
+        <!-- Sidebar -->
+        <div class="dash-sidebar">
+
+          <!-- My Location Toggle -->
+          <div class="location-toggle">
+            <div>
+              <div style="font-size:0.85rem;font-weight:700;">📍 Share My Location</div>
+              <div style="font-size:0.72rem;color:var(--clr-muted);">Others can see where you are</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="locationToggle" checked onchange="toggleMyLocation(this.checked)"/>
+              <div class="toggle-slider"></div>
+            </label>
+          </div>
+
+          <!-- Sidebar Tabs -->
+          <div class="sidebar-tabs">
+            <div class="sidebar-tab active" id="tabMembers" onclick="switchSidebarTab('members')">
+              👥 Members
+            </div>
+            <div class="sidebar-tab" id="tabAlerts" onclick="switchSidebarTab('alerts')">
+              🔔 Alerts <span class="alert-badge" id="alertBadge" style="display:none;">0</span>
+            </div>
+            <div class="sidebar-tab" id="tabRoute" onclick="switchSidebarTab('route')">
+              🗺️ Route
+            </div>
+          </div>
+
+          <!-- Members Panel -->
+          <div class="sidebar-content" id="panelMembers">
+            <div id="memberList"></div>
+          </div>
+
+          <!-- Alerts Panel -->
+          <div class="sidebar-content" id="panelAlerts" style="display:none;">
+            <div id="alertList"></div>
+          </div>
+
+          <!-- Route Panel -->
+          <div class="sidebar-content" id="panelRoute" style="display:none;">
+            <div class="route-progress">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <div style="font-size:0.8rem;color:var(--clr-muted);">Start</div>
+                <div style="font-size:0.8rem;font-weight:700;color:var(--clr-em);" id="routeDestLabel">Munnar</div>
+              </div>
+              <div class="route-bar" id="routeBar">
+                <div class="route-fill" id="routeFill" style="width:0%"></div>
+              </div>
+              <div id="routeDots"></div>
+              <div style="padding:12px;background:rgba(0,229,160,0.05);border-radius:10px;margin-top:12px;">
+                <div style="font-size:0.8rem;font-weight:700;margin-bottom:8px;">Route Summary</div>
+                <div style="font-size:0.78rem;color:var(--clr-muted);display:flex;flex-direction:column;gap:6px;" id="routeSummary"></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Map -->
+        <div class="map-wrap">
+          <div id="map"></div>
+          <div class="map-controls">
+            <button class="map-btn" onclick="fitAll()" title="Fit all members"><i class="fa-solid fa-expand"></i></button>
+            <button class="map-btn" onclick="centerMe()" title="My location"><i class="fa-solid fa-location-crosshairs"></i></button>
+            <button class="map-btn" onclick="toggleRoute()" title="Toggle route"><i class="fa-solid fa-route"></i></button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════
+// STATE
+// ══════════════════════════════════════
+let state = {
+  mode: 'create',
+  role: 'leader',
+  groupCode: '',
+  tripName: '',
+  destination: 'Munnar',
+  myName: '',
+  members: [],
+  alerts: [],
+  map: null,
+  markers: {},
+  routeLine: null,
+  showRoute: true,
+  myLocation: null,
+  updateInterval: null,
+  alertCount: 0,
+};
+
+// Munnar route coordinates (Kochi → Munnar)
+const ROUTE_COORDS = [
+  [9.9312, 76.2673], // Kochi
+  [9.9816, 76.5533], // Perumbavoor
+  [10.0733, 76.7177], // Kothamangalam
+  [10.1000, 77.0000], // Adimali
+  [10.0889, 77.0616], // Munnar
+];
+
+const DEST_COORDS = {
+  'Munnar':    [10.0889, 77.0616],
+  'Alleppey':  [9.4981, 76.3388],
+  'Wayanad':   [11.6854, 76.1320],
+  'Kovalam':   [8.3988, 76.9784],
+  'Thekkady':  [9.5993, 77.1593],
+  'Fort Kochi':[9.9639, 76.2430],
+  'Varkala':   [8.7378, 76.7163],
+};
+
+// Demo members along the Kochi→Munnar route
+const DEMO_MEMBERS = [
+  {id:'m1', name:'Arjun (You)', emoji:'👑', role:'leader', status:'travelling', lat:9.9312, lng:76.2673, progress:0,  speed:65, eta:'3h 20m', lastUpdate:0, bg:'#00e5a0'},
+  {id:'m2', name:'Rahul',       emoji:'🏍️', role:'member', status:'travelling', lat:9.9600, lng:76.4200, progress:25, speed:72, eta:'2h 45m', lastUpdate:0, bg:'#00cec9'},
+  {id:'m3', name:'Priya',       emoji:'🏍️', role:'member', status:'break',      lat:10.0200, lng:76.6000, progress:50, speed:0,  eta:'3h 10m', lastUpdate:2, bg:'#ffd166'},
+  {id:'m4', name:'Kiran',       emoji:'🏍️', role:'member', status:'travelling', lat:10.0400, lng:76.7500, progress:70, speed:58, eta:'1h 15m', lastUpdate:0, bg:'#fd79a8'},
+  {id:'m5', name:'Sneha',       emoji:'🏍️', role:'member', status:'reached',    lat:10.0889, lng:77.0616, progress:100,speed:0,  eta:'Reached!', lastUpdate:0, bg:'#6c5ce7'},
+];
+
+const DEMO_ALERTS_INIT = [
+  {type:'warn',   icon:'⚠️', title:'Priya is on a break', desc:'Has been stationary at Kothamangalam for 18 minutes.', time:'8 min ago'},
+  {type:'success',icon:'✅', title:'Sneha reached Munnar', desc:'Sneha has safely arrived at the destination.', time:'12 min ago'},
+  {type:'info',   icon:'ℹ️', title:'Kiran is 1h 15m away', desc:'Approaching Adimali. On track to reach on time.', time:'2 min ago'},
+];
+
+// ══════════════════════════════════════
+// SCREEN SWITCH
+// ══════════════════════════════════════
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ══════════════════════════════════════
+// MODE TOGGLE
+// ══════════════════════════════════════
+function switchMode(mode){
+  state.mode = mode;
+  document.getElementById('tabCreate').classList.toggle('active', mode==='create');
+  document.getElementById('tabJoin').classList.toggle('active', mode==='join');
+  document.getElementById('modeCreate').style.display = mode==='create'?'block':'none';
+  document.getElementById('modeJoin').style.display = mode==='join'?'block':'none';
+}
+
+function selectRole(role){
+  state.role = role;
+  document.getElementById('roleLeader').classList.toggle('selected', role==='leader');
+  document.getElementById('roleMember').classList.toggle('selected', role==='member');
+}
+
+// ══════════════════════════════════════
+// CREATE GROUP
+// ══════════════════════════════════════
+function generateCode(){
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code='';
+  for(let i=0;i<6;i++) code+=chars[Math.floor(Math.random()*chars.length)];
+  return code;
+}
+
+function createGroup(){
+  const name = document.getElementById('leaderName').value.trim() || 'Group Leader';
+  const trip = document.getElementById('tripName').value.trim() || 'Kerala Adventure';
+  const dest = document.getElementById('destination').value;
+  state.groupCode = generateCode();
+  state.tripName = trip;
+  state.destination = dest;
+  state.myName = name;
+  // Personalize demo: replace "Arjun (You)" with leader name
+  DEMO_MEMBERS[0].name = name + ' (You)';
+  loadDashboard();
+}
+
+// ══════════════════════════════════════
+// JOIN GROUP
+// ══════════════════════════════════════
+function joinGroup(){
+  const code = document.getElementById('joinCode').value.trim().toUpperCase();
+  const name = document.getElementById('memberName').value.trim() || 'Traveller';
+  if(code.length !== 6){ showToast('Please enter a valid 6-digit code'); return; }
+  state.groupCode = code;
+  state.myName = name;
+  state.role = 'member';
+  state.tripName = 'Munnar Bullet Ride 2026';
+  state.destination = 'Munnar';
+  DEMO_MEMBERS[0].name = name + ' (You)';
+  loadDashboard();
+}
+
+function loadDemo(){
+  state.groupCode = 'MUN26X';
+  state.myName = 'Demo User';
+  state.role = 'leader';
+  state.tripName = 'Munnar Bullet Ride 2026';
+  state.destination = 'Munnar';
+  loadDashboard();
+}
+
+// ══════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════
+function loadDashboard(){
+  showScreen('screenDash');
+  document.getElementById('navGroupCode').textContent = state.groupCode;
+  state.members = JSON.parse(JSON.stringify(DEMO_MEMBERS));
+  state.alerts = [...DEMO_ALERTS_INIT];
+  state.alertCount = state.alerts.filter(a=>a.type==='warn'||a.type==='danger').length;
+
+  document.getElementById('routeDestLabel').textContent = state.destination;
+
+  setTimeout(()=>{
+    initMap();
+    renderMembers();
+    renderAlerts();
+    renderRoute();
+    updateStats();
+    startSimulation();
+  }, 300);
+}
+
+// ══════════════════════════════════════
+// MAP
+// ══════════════════════════════════════
+function initMap(){
+  const destCoord = DEST_COORDS[state.destination] || [10.0889, 77.0616];
+  state.map = L.map('map', {zoomControl:false}).setView([9.9500, 76.7000], 9);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© OpenStreetMap',
+    maxZoom:18
+  }).addTo(state.map);
+
+  L.control.zoom({position:'bottomright'}).addTo(state.map);
+
+  // Route polyline
+  if(state.showRoute){
+    state.routeLine = L.polyline(ROUTE_COORDS, {
+      color:'#00e5a0', weight:4, opacity:0.6, dashArray:'10,6'
+    }).addTo(state.map);
+  }
+
+  // Destination marker
+  L.marker(destCoord, {icon: L.divIcon({
+    className:'',
+    html:`<div style="background:#ffd166;color:#030d12;padding:6px 12px;border-radius:8px;font-size:0.75rem;font-weight:800;white-space:nowrap;box-shadow:0 2px 12px rgba(0,0,0,0.3);">🏁 ${state.destination}</div>`,
+    iconAnchor:[40,16]
+  })}).addTo(state.map);
+
+  // Place member markers
+  state.members.forEach(m => addMarker(m));
+  fitAll();
+}
+
+function makeMarkerHTML(m){
+  const borderColor = m.status==='travelling'?'#00e5a0':m.status==='reached'?'#ffd166':m.status==='break'?'#00cec9':'#ff6b6b';
+  const pulse = m.status==='travelling'?' marker-pulse':'';
+  return `<div class="custom-marker">
+    <div class="marker-avatar" style="background:${m.bg};border-color:${borderColor};">
+      <span>${m.emoji}</span>
+    </div>
+    <div class="marker-label">${m.name.split(' ')[0]}</div>
+  </div>`;
+}
+
+function addMarker(m){
+  const icon = L.divIcon({className:'', html:makeMarkerHTML(m), iconAnchor:[19,19]});
+  const marker = L.marker([m.lat,m.lng],{icon}).addTo(state.map);
+  marker.bindPopup(makePopupHTML(m));
+  state.markers[m.id] = marker;
+}
+
+function makePopupHTML(m){
+  const statusColors = {travelling:'#00e5a0',reached:'#ffd166',break:'#00cec9',unavailable:'#ff6b6b'};
+  const statusLabels = {travelling:'🏍️ Travelling',reached:'🏁 Reached',break:'☕ Taking a Break',unavailable:'❌ Unavailable'};
+  return `<div style="font-family:system-ui;min-width:180px;">
+    <div style="font-weight:800;font-size:1rem;margin-bottom:6px;">${m.emoji} ${m.name}</div>
+    <div style="display:inline-block;padding:2px 10px;border-radius:99px;background:${statusColors[m.status]||'#888'}22;color:${statusColors[m.status]||'#888'};font-size:0.75rem;font-weight:700;margin-bottom:8px;">${statusLabels[m.status]||m.status}</div>
+    <div style="font-size:0.78rem;color:#888;display:flex;flex-direction:column;gap:4px;">
+      <span>⚡ Speed: <b>${m.speed} km/h</b></span>
+      <span>⏱️ ETA: <b>${m.eta}</b></span>
+      <span>📶 Progress: <b>${m.progress}%</b></span>
+    </div>
+  </div>`;
+}
+
+function updateMarker(m){
+  if(state.markers[m.id]){
+    state.markers[m.id].setLatLng([m.lat,m.lng]);
+    const icon = L.divIcon({className:'', html:makeMarkerHTML(m), iconAnchor:[19,19]});
+    state.markers[m.id].setIcon(icon);
+    state.markers[m.id].setPopupContent(makePopupHTML(m));
+  }
+}
+
+function fitAll(){
+  if(!state.map) return;
+  const lats = state.members.map(m=>m.lat);
+  const lngs = state.members.map(m=>m.lng);
+  state.map.fitBounds([[Math.min(...lats)-0.05,Math.min(...lngs)-0.05],[Math.max(...lats)+0.05,Math.max(...lngs)+0.05]]);
+}
+
+function centerMe(){
+  const me = state.members[0];
+  if(state.map && me) state.map.setView([me.lat,me.lng],12);
+}
+
+function toggleRoute(){
+  if(!state.map) return;
+  if(state.routeLine){ state.map.removeLayer(state.routeLine); state.routeLine=null; }
+  else { state.routeLine=L.polyline(ROUTE_COORDS,{color:'#00e5a0',weight:4,opacity:0.6,dashArray:'10,6'}).addTo(state.map); }
+}
+
+// ══════════════════════════════════════
+// MEMBERS LIST
+// ══════════════════════════════════════
+function renderMembers(){
+  const statusLabels = {travelling:'🏍️ Travelling',reached:'🏁 Reached Destination',break:'☕ Taking a Break',unavailable:'❌ Location Unavailable'};
+  const statusClass = {travelling:'travelling',reached:'reached',break:'break',unavailable:'unavailable'};
+  let html = '';
+  state.members.forEach((m,i)=>{
+    const ageMin = Math.floor(m.lastUpdate);
+    const age = ageMin===0?'Just now':`${ageMin}m ago`;
+    html += `<div class="member-card ${state.selectedMember===m.id?'selected':''}" onclick="focusMember('${m.id}')">
+      <div class="member-avatar status-${m.status}" style="background:${m.bg}20;font-size:1.3rem;">
+        ${m.emoji}
+        <div class="status-ring" style="background:${m.status==='travelling'?'var(--status-travel)':m.status==='reached'?'var(--status-reach)':m.status==='break'?'var(--status-break)':'var(--status-unavail)'}"></div>
+      </div>
+      <div class="member-info">
+        <div class="member-name">${m.name} ${m.role==='leader'?'<span style="font-size:0.65rem;color:var(--clr-gold);">LEADER</span>':''}</div>
+        <div class="member-status">
+          <span class="status-pill ${statusClass[m.status]}">${statusLabels[m.status]}</span>
+        </div>
+        <div style="font-size:0.7rem;color:var(--clr-muted);margin-top:3px;">Updated: ${age}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-size:0.85rem;font-weight:700;color:var(--clr-em);">${m.progress}%</div>
+        <div class="member-speed">${m.speed>0?m.speed+' km/h':'Stopped'}</div>
+        <div style="font-size:0.7rem;color:var(--clr-muted);">${m.eta}</div>
+      </div>
+    </div>`;
+  });
+  document.getElementById('memberList').innerHTML = html;
+}
+
+function focusMember(id){
+  state.selectedMember = id;
+  const m = state.members.find(x=>x.id===id);
+  if(m && state.map){
+    state.map.setView([m.lat,m.lng],13,{animate:true});
+    if(state.markers[id]) state.markers[id].openPopup();
+  }
+  renderMembers();
+}
+
+// ══════════════════════════════════════
+// ALERTS LIST
+// ══════════════════════════════════════
+function renderAlerts(){
+  const alertColors = {danger:'danger',warn:'warn',info:'info',success:'success'};
+  let html = '';
+  if(state.alerts.length===0){
+    html='<div style="padding:40px;text-align:center;color:var(--clr-muted);font-size:0.875rem;">✅ No alerts at this time</div>';
+  } else {
+    state.alerts.forEach(a=>{
+      html+=`<div class="alert-item">
+        <div class="alert-icon ${alertColors[a.type]||'info'}">${a.icon}</div>
+        <div>
+          <div class="alert-title">${a.title}</div>
+          <div class="alert-desc">${a.desc}</div>
+          <div class="alert-time">${a.time}</div>
+        </div>
+      </div>`;
+    });
+  }
+  document.getElementById('alertList').innerHTML = html;
+  const badge = document.getElementById('alertBadge');
+  const warnCount = state.alerts.filter(a=>a.type==='warn'||a.type==='danger').length;
+  if(warnCount>0){ badge.style.display='inline-flex'; badge.textContent=warnCount; }
+  else badge.style.display='none';
+}
+
+// ══════════════════════════════════════
+// ROUTE PANEL
+// ══════════════════════════════════════
+function renderRoute(){
+  const avgProgress = Math.round(state.members.reduce((s,m)=>s+m.progress,0)/state.members.length);
+  document.getElementById('routeFill').style.width = avgProgress+'%';
+
+  // Summary
+  const travelling = state.members.filter(m=>m.status==='travelling').length;
+  const reached    = state.members.filter(m=>m.status==='reached').length;
+  const onBreak    = state.members.filter(m=>m.status==='break').length;
+  const unavail    = state.members.filter(m=>m.status==='unavailable').length;
+  document.getElementById('routeSummary').innerHTML = `
+    <span>🏍️ Travelling: <b>${travelling} member${travelling!==1?'s':''}</b></span>
+    <span>🏁 Reached: <b>${reached} member${reached!==1?'s':''}</b></span>
+    <span>☕ On Break: <b>${onBreak} member${onBreak!==1?'s':''}</b></span>
+    <span>❌ Unavailable: <b>${unavail} member${unavail!==1?'s':''}</b></span>
+    <span style="margin-top:4px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);">📊 Group Progress: <b style="color:var(--clr-em);">${avgProgress}%</b></span>
+  `;
+}
+
+// ══════════════════════════════════════
+// STATS BAR
+// ══════════════════════════════════════
+function updateStats(){
+  document.getElementById('statTotal').textContent = state.members.length;
+  document.getElementById('statTravelling').textContent = state.members.filter(m=>m.status==='travelling').length;
+  document.getElementById('statReached').textContent = state.members.filter(m=>m.status==='reached').length;
+  const warnCount = state.alerts.filter(a=>a.type==='warn'||a.type==='danger').length;
+  document.getElementById('statAlerts').textContent = warnCount;
+}
+
+// ══════════════════════════════════════
+// SIMULATION — members move over time
+// ══════════════════════════════════════
+function startSimulation(){
+  state.updateInterval = setInterval(()=>{
+    state.members.forEach((m,i)=>{
+      if(m.status==='reached' || m.status==='unavailable') return;
+      if(m.status==='break'){
+        m.lastUpdate += 0.1;
+        if(m.lastUpdate > 3){ // After 3 min break, resume
+          m.status='travelling'; m.speed=55; m.lastUpdate=0;
+          addAlert({type:'info',icon:'🏍️',title:`${m.name.split(' ')[0]} resumed travelling`,desc:'Back on the road after a break.',time:'Just now'});
+        }
+        return;
+      }
+      // Move along route
+      if(m.progress < 100){
+        m.progress = Math.min(100, m.progress + (Math.random()*1.2+0.3));
+        // Interpolate lat/lng along route
+        const t = m.progress/100;
+        const seg = Math.min(Math.floor(t*(ROUTE_COORDS.length-1)), ROUTE_COORDS.length-2);
+        const segT = (t*(ROUTE_COORDS.length-1)) - seg;
+        m.lat = ROUTE_COORDS[seg][0] + (ROUTE_COORDS[seg+1][0]-ROUTE_COORDS[seg][0])*segT + (Math.random()-0.5)*0.005;
+        m.lng = ROUTE_COORDS[seg][1] + (ROUTE_COORDS[seg+1][1]-ROUTE_COORDS[seg][1])*segT + (Math.random()-0.5)*0.005;
+        m.speed = Math.round(45 + Math.random()*35);
+        const remaining = 100-m.progress;
+        const etaMins = Math.round(remaining*2.5);
+        m.eta = etaMins>60?`${Math.floor(etaMins/60)}h ${etaMins%60}m`:`${etaMins}m`;
+        m.lastUpdate = 0;
+
+        if(m.progress >= 100){
+          m.status='reached'; m.speed=0; m.eta='Reached!';
+          m.lat = DEST_COORDS[state.destination][0];
+          m.lng = DEST_COORDS[state.destination][1];
+          addAlert({type:'success',icon:'✅',title:`${m.name.split(' ')[0]} reached ${state.destination}!`,desc:'Has safely arrived at the destination.',time:'Just now'});
+        }
+      }
+      updateMarker(m);
+    });
+
+    // Occasional random break
+    state.members.forEach(m=>{
+      if(m.status==='travelling' && Math.random()<0.005){
+        m.status='break'; m.speed=0; m.lastUpdate=0;
+        addAlert({type:'warn',icon:'☕',title:`${m.name.split(' ')[0]} is taking a break`,desc:`Stopped near current location.`,time:'Just now'});
+      }
+    });
+
+    renderMembers();
+    renderAlerts();
+    renderRoute();
+    updateStats();
+  }, 2000);
+}
+
+function addAlert(alert){
+  state.alerts.unshift(alert);
+  if(state.alerts.length>20) state.alerts.pop();
+}
+
+// ══════════════════════════════════════
+// SIDEBAR TABS
+// ══════════════════════════════════════
+function switchSidebarTab(tab){
+  ['members','alerts','route'].forEach(t=>{
+    document.getElementById('tab'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('active',t===tab);
+    document.getElementById('panel'+t.charAt(0).toUpperCase()+t.slice(1)).style.display=t===tab?'block':'none';
+  });
+}
+
+// ══════════════════════════════════════
+// LOCATION TOGGLE
+// ══════════════════════════════════════
+function toggleMyLocation(on){
+  if(on){
+    showToast('📍 Location sharing enabled');
+    // Try real geolocation
+    if(navigator.geolocation){
+      navigator.geolocation.getCurrentPosition(pos=>{
+        const me = state.members[0];
+        if(me){ me.lat=pos.coords.latitude; me.lng=pos.coords.longitude; updateMarker(me); }
+        showToast('📍 Using your real location!');
+      }, ()=>{});
+    }
+  } else {
+    showToast('🔒 Location sharing paused');
+    const me = state.members[0];
+    if(me){ me.status='unavailable'; me.speed=0; }
+  }
+}
+
+// ══════════════════════════════════════
+// UTILITIES
+// ══════════════════════════════════════
+function copyCode(){
+  navigator.clipboard.writeText(state.groupCode).then(()=>showToast(`📋 Code ${state.groupCode} copied!`)).catch(()=>{
+    showToast(`Group Code: ${state.groupCode}`);
+  });
+}
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+function leaveGroup(){
+  if(confirm('Leave this trip group?')){
+    clearInterval(state.updateInterval);
+    if(state.map){ state.map.remove(); state.map=null; }
+    state.markers={};
+    showScreen('screenJoin');
+  }
+}
+
+// ══════════════════════════════════════
+// BACKGROUND CANVAS ANIMATION
+// ══════════════════════════════════════
+(function(){
+  const canvas=document.getElementById('bgCanvas');
+  if(!canvas)return;
+  const ctx=canvas.getContext('2d');
+  let W,H,particles=[];
+  function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;}
+  resize(); window.addEventListener('resize',resize);
+  for(let i=0;i<60;i++) particles.push({x:Math.random()*2000,y:Math.random()*1200,vx:(Math.random()-0.5)*0.3,vy:(Math.random()-0.5)*0.3,r:Math.random()*2+1,a:Math.random()});
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    particles.forEach(p=>{
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0)p.x=W; if(p.x>W)p.x=0;
+      if(p.y<0)p.y=H; if(p.y>H)p.y=0;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(0,229,160,${p.a*0.5})`; ctx.fill();
+    });
+    particles.forEach((p,i)=>particles.slice(i+1).forEach(q=>{
+      const d=Math.hypot(p.x-q.x,p.y-q.y);
+      if(d<120){ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.strokeStyle=`rgba(0,229,160,${0.08*(1-d/120)})`;ctx.stroke();}
+    }));
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+</script>
+</body>
+</html>

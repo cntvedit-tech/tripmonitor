@@ -147,7 +147,7 @@
 
 <!-- ══ HERO ══ -->
 <section class="hero" id="home">
-  <canvas id="particles-canvas"></canvas>
+  <canvas id="particles-canvas" style="position:absolute;inset:0;z-index:1;pointer-events:none;"></canvas>
   <div class="hero-bg">
     <img src="images/hero_banner.png" alt="Kerala landscape"/>
   </div>
@@ -769,7 +769,7 @@ function animate(){
 }
 
 window.addEventListener('resize',()=>{resize();initParticles();});
-canvas.addEventListener('mousemove',e=>{
+window.addEventListener('mousemove',e=>{
   const r=canvas.getBoundingClientRect();
   mouse.x=e.clientX-r.left;
   mouse.y=e.clientY-r.top;

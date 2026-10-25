@@ -69,6 +69,7 @@ h1,h2,h3,h4{line-height:1.2;}
 .reveal-left.visible{opacity:1;transform:translateX(0);}
 .reveal-right{opacity:0;transform:translateX(50px);transition:opacity 0.7s ease,transform 0.7s ease;}
 .reveal-right.visible{opacity:1;transform:translateX(0);}
+a.dest-card{text-decoration:none;display:block;color:inherit;}
 .dest-card{position:relative;border-radius:var(--radius-lg);overflow:hidden;cursor:pointer;transition:var(--transition);}
 .dest-card::before{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(3,13,18,0.95) 0%,rgba(3,13,18,0.4) 50%,transparent 100%);z-index:1;transition:var(--transition);}
 .dest-card:hover{transform:translateY(-8px) scale(1.02);box-shadow:var(--shadow-card),var(--shadow-glow);}
